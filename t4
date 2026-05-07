@@ -1,23 +1,28 @@
-import pandas as pd
-import matplotlib.pyplot as plt
+import pandas as pd,matplotlib.pyplot as plt,matplotlib.ticker as mt
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import StrMethodFormatter as smf
 
-p,s = pd.read_csv('products.csv'),pd.read_csv('s-Clean.csv')
-
-p['price'] = pd.to_numeric(p['price'].astype(str).str.replace(r'^0-9.\-','',regex=True),errors='coerce').abs()
-p['cost'] = pd.to_numeric(p['cost'].astype(str).str.replace(r'^0-9.\-','',regex=True),errors='coerce').abs()
+p,s = pd.read_csv('products.csv'),pd.read_csv('sclean.csv')
+for col in ['price','cost']:
+    p[col] = pd.to_numeric(p[col].astype(str).str.replace(r'^0-9.\-','',regex=True),errors='coerce').abs()
 p['category'] = p['category'].replace({'Pastry':'Pastries'})
 
 m = s.assign(
-    revenue = (s.quantity * s.price) - s.discount_amount.fillna(0)
-).merge(p[['product_id','product_name','cost','category']],on='product_id',how='left')
+    revenue = (s['quantity'] * s['price']) - pd.to_numeric(s['discount_amount']).fillna(0)
+).merge(p[['product_id','product_name','category','cost']],on='product_id',how='left')
 
-t3 = m.groupby('product_name')[['quantity','revenue']].sum().nlargest(3,'quantity').reset_index().rename(columns={'quantity':'Total Quantity Sold','revenue':'Total Revenue'})
-t3['Total Revenue'] = t3['Total Revenue'].apply(lambda v:f"${v:,.2f}")
-cr = m[m.category.isin(['Pastries','Bread','Tarte'])].groupby('category')['revenue'].sum()
+t3 = m.groupby('product_name')[['quantity','revenue']].sum().nlargest(3,'quantity').reset_index()
+t3['revenue'] = t3['revenue'].map('${:,.2f}'.format)
+cr = m[m.category.isin(['Bread','Tarte','Pastries'])].groupby('category')['revenue'].sum()
 
-with PdfPages('filmtests4.pdf') as pdf:
-    fig,ax = plt.subplots(); cr.plot(kind='bar',color=['red','green','blue'],ax=ax, title='Total revenue by product',ylabel='Total Revenue ($)',rot=0);
-    pdf.savefig(bbox_inches='tight');plt.close()
-    fig,ax = plt.subplots(figsize=(9,3)); ax.axis('off'); tbl = ax.table(cellText=t3.values,colLabels=t3.columns,loc='center',cellLoc='center'); tbl.scale(1,2); ax.set_title('Top 3 Best selling',weight='bold');
-    pdf.savefig(bbox_inches='tight');plt.close()
+with PdfPages('abc.pdf') as pdf:
+    fig,ax = plt.subplots();
+    cr.plot.bar(color=['red','green','blue'],rot=0,ylabel='Total Revenue ($)')
+    ax.set_title('CAT',weight='bold',fontsize=14)
+    ax.grid(axis='y',ls='--')
+    ax.yaxis.set_major_formatter(smf('${x:,.0f}'))
+    ax.set_axisbelow(True)
+    pdf.savefig(plt.gcf(),bbox_inches='tight');plt.close()
+    fig,t = plt.subplots(figsize=(6,2));t.axis('off')
+    t.table(cellText=t3.values,colLabels=['gg','ggh','gfg'],loc='center',cellLoc='center').scale(1,2)
+    pdf.savefig(plt.gcf(),bbox_inches='tight');plt.close()
